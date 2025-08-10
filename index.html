@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>QR 코드 변환기</title>
+  <style>
+    :root { --bg:#0b0b0c; --fg:#eaeaea; --muted:#9aa0a6; }
+    body {
+      margin:0; font-family:ui-sans-serif,system-ui;
+      background:var(--bg); color:var(--fg);
+      display:grid; place-items:center; min-height:100dvh;
+    }
+    .card {
+      width:min(720px,92vw); background:#141416;
+      border:1px solid #2a2b2f; border-radius:18px;
+      padding:20px; box-shadow:0 10px 30px rgba(0,0,0,.35);
+    }
+    h1 { margin:0 0 12px; font-size:22px; }
+    .row { display:grid; gap:10px; grid-template-columns:1fr; }
+    @media (min-width:720px){ .row{ grid-template-columns: 1fr 240px; } }
+    textarea, select, input[type="number"] {
+      width:95%; background:#0f1012; color:var(--fg);
+      border:1px solid #2a2b2f; border-radius:12px;
+      padding:10px 12px; font-size:14px; outline:none;
+    }
+    input[type="number"]{
+        width: 80%;
+    }
+    label { font-size:12px; color:var(--muted); margin-top:6px; display:block; }
+    .controls {
+      display:grid; grid-template-columns: repeat(4, minmax(0,1fr));
+      gap:10px; margin-top:10px;
+    }
+    .btns { display:flex; gap:10px; margin-top:12px; }
+    button {
+      border:none; border-radius:12px; padding:10px 14px;
+      font-weight:600; cursor:pointer;
+    }
+    /* 다운로드 버튼 파란색 스타일 */
+    #download {
+      background:#109bff; color:#ffffff;
+    }
+    button.secondary { background:#22242a; color:var(--fg); }
+    button:disabled { opacity:.6; cursor:not-allowed; }
+    #qrbox {
+      background:#fff; border-radius:12px;
+      width:240px; height:240px;
+      display:flex; align-items:center; justify-content:center;
+      overflow:hidden;
+    }
+    #qrbox .placeholder { color:#666; font:14px ui-sans-serif,system-ui; }
+    .muted { color:var(--muted); font-size:12px; margin-top:6px;}
+  </style>
+  <!-- qrcodejs -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"
+    integrity="sha512-CNgIRecGo7nphbeZ04Sc13ka07paqdeTu0WR1IM4kNcpmBAUSHSQX0FslNhTDadL4O5SAGapGt4FodqL8My0mA=="
+    crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+</head>
+<body>
+  <div class="card">
+    <h1>QR 코드 변환기</h1>
+    <div class="row">
+      <div>
+        <label>텍스트 / URL</label>
+        <textarea id="input" rows="6" placeholder="여기에 텍스트나 URL 입력"></textarea>
+
+        <div class="controls">
+          <div>
+            <label>사이즈(px)</label>
+            <input id="size" type="number" min="128" max="2048" value="512" />
+          </div>
+          <div>
+            <label>에러정정</label>
+            <select id="ec">
+              <option value="L">L (낮음, 용량↑)</option>
+              <option value="M" selected>M (보통)</option>
+              <option value="Q">Q (높음)</option>
+              <option value="H">H (매우 높음, 로고용)</option>
+            </select>
+          </div>
+          <div>
+            <label>전경색</label>
+            <input id="dark" type="color" value="#000000" />
+          </div>
+          <div>
+            <label>배경색</label>
+            <input id="light" type="color" value="#ffffff" />
+          </div>
+        </div>
+
+        <div class="btns">
+          <button id="download" type="button" disabled>PNG 다운로드</button>
+          <button class="secondary" id="clear" type="button">지우기</button>
+        </div>
+        <div class="muted">팁: 스캔 안 되면… 그냥 URL 타이핑하세요.</div>
+      </div>
+
+      <div>
+        <div id="qrbox" aria-label="QR 미리보기" >
+          <div class="placeholder">미리보기 없음</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function(){
+      const $ = (id) => document.getElementById(id);
+      const input = $('input'), size = $('size'), ec = $('ec'),
+            dark = $('dark'), light = $('light');
+      const qrbox = $('qrbox'), dlBtn = $('download'), clearBtn = $('clear');
+
+      function showPlaceholder(msg='미리보기 없음'){
+        qrbox.innerHTML = `<div class="placeholder">${msg}</div>`;
+        dlBtn.disabled = true;
+      }
+
+      function renderQR(){
+        const text = (input.value || '').trim();
+        const w = 240; // 미리보기는 항상 240px 고정
+        if(!text){
+          showPlaceholder();
+          return;
+        }
+        qrbox.innerHTML = '';
+        const levelMap = (QRCode.CorrectLevel || {L:1,M:0,Q:3,H:2});
+        const level = levelMap[ec.value] ?? levelMap.M;
+
+        try{
+          new QRCode(qrbox, {
+            text,
+            width: w,
+            height: w,
+            colorDark: dark.value,
+            colorLight: light.value,
+            correctLevel: level
+          });
+          dlBtn.disabled = false;
+        }catch(e){
+          console.error(e);
+          showPlaceholder('생성 실패');
+        }
+      }
+
+      function downloadPNG(){
+        if (dlBtn.disabled) return;
+
+        const text = (input.value || '').trim();
+        const dlW = Number(size.value) || 1024; // ✅ 다운로드 해상도 (입력값 사용)
+        const levelMap = (QRCode.CorrectLevel || {L:1,M:0,Q:3,H:2});
+        const level = levelMap[ec.value] ?? levelMap.M;
+
+        // 오프스크린 컨테이너에 고해상도로 한 번 더 그린 뒤 저장
+        const tmp = document.createElement('div');
+        tmp.style.position = 'fixed';
+        tmp.style.left = '-9999px';
+        tmp.style.top = '0';
+        document.body.appendChild(tmp);
+
+        new QRCode(tmp, {
+            text,
+            width: dlW,
+            height: dlW,
+            colorDark: dark.value,
+            colorLight: light.value,
+            correctLevel: level
+        });
+
+        // qrcodejs가 canvas 또는 img를 비동기로 붙임 → 준비되면 저장
+        const trySave = () => {
+            const c = tmp.querySelector('canvas');
+            const img = tmp.querySelector('img');
+            if (c) {
+            const a = document.createElement('a');
+            a.download = 'qrcode.png';
+            a.href = c.toDataURL('image/png');
+            a.click();
+            tmp.remove();
+            } else if (img) {
+            if (img.complete) {
+                const a = document.createElement('a');
+                a.download = 'qrcode.png';
+                a.href = img.src;
+                a.click();
+                tmp.remove();
+            } else {
+                img.addEventListener('load', () => {
+                const a = document.createElement('a');
+                a.download = 'qrcode.png';
+                a.href = img.src;
+                a.click();
+                tmp.remove();
+                }, { once: true });
+            }
+            } else {
+            // 아직 안 붙었으면 다음 틱에 재시도
+            requestAnimationFrame(trySave);
+            }
+        };
+        requestAnimationFrame(trySave);
+        }
+
+      dlBtn.addEventListener('click', downloadPNG);
+
+      let t;
+      const schedule = () => { if (t) clearTimeout(t); t = setTimeout(renderQR, 160); };
+      ['input','change'].forEach(ev=>{
+        [input,size,ec,dark,light].forEach(el=> el.addEventListener(ev, schedule));
+      });
+
+      clearBtn.addEventListener('click', ()=>{
+        if (t) { clearTimeout(t); t = null; }
+        input.value = '';
+        showPlaceholder();
+      });
+
+      showPlaceholder();
+    })();
+  </script>
+</body>
+</html>
