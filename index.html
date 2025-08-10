@@ -5,52 +5,82 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>QR 코드 변환기</title>
   <style>
-    :root { --bg:#0b0b0c; --fg:#eaeaea; --muted:#9aa0a6; }
-    body {
+    :root{
+      /* Dark (default) */
+      --bg:#0b0b0c;
+      --fg:#eaeaea;
+      --muted:#9aa0a6;
+      --card-bg:#141416;
+      --card-border:#2a2b2f;
+      --input-bg:#0f1012;
+      --secondary-bg:#22242a;
+    }
+    /* Light theme overrides */
+    body.light{
+      --bg:#ffffff;
+      --fg:#1a1a1a;
+      --muted:#666666;
+      --card-bg:#f7f7f8;
+      --card-border:#e7e7ea;
+      --input-bg:#ffffff;
+      --secondary-bg:#f0f1f3;
+    }
+
+    body{
       margin:0; font-family:ui-sans-serif,system-ui;
       background:var(--bg); color:var(--fg);
       display:grid; place-items:center; min-height:100dvh;
     }
-    .card {
-      width:min(720px,92vw); background:#141416;
-      border:1px solid #2a2b2f; border-radius:18px;
-      padding:20px; box-shadow:0 10px 30px rgba(0,0,0,.35);
+    .card{
+      width:min(720px,92vw); background:var(--card-bg);
+      border:1px solid var(--card-border); border-radius:18px;
+      padding:20px; box-shadow:0 10px 30px rgba(0,0,0,.15);
     }
-    h1 { margin:0 0 12px; font-size:22px; }
-    .row { display:grid; gap:10px; grid-template-columns:1fr; }
+    .topbar{
+      display:flex; align-items:center; justify-content:space-between;
+      margin-bottom:12px;
+    }
+    h1{ margin:0; font-size:22px; }
+    .row{ display:grid; gap:10px; grid-template-columns:1fr; }
     @media (min-width:720px){ .row{ grid-template-columns: 1fr 240px; } }
-    textarea, select, input[type="number"] {
-      width:95%; background:#0f1012; color:var(--fg);
-      border:1px solid #2a2b2f; border-radius:12px;
+
+    textarea, select, input[type="number"]{
+      width:95%; background:var(--input-bg); color:var(--fg);
+      border:1px solid var(--card-border); border-radius:12px;
       padding:10px 12px; font-size:14px; outline:none;
     }
-    input[type="number"]{
-        width: 80%;
-    }
-    label { font-size:12px; color:var(--muted); margin-top:6px; display:block; }
-    .controls {
+    input[type="number"]{ width:80%; }
+
+    label{ font-size:12px; color:var(--muted); margin-top:6px; display:block; }
+    .controls{
       display:grid; grid-template-columns: repeat(4, minmax(0,1fr));
       gap:10px; margin-top:10px;
     }
-    .btns { display:flex; gap:10px; margin-top:12px; }
-    button {
+    .btns{ display:flex; gap:10px; margin-top:12px; flex-wrap:wrap; }
+    button{
       border:none; border-radius:12px; padding:10px 14px;
       font-weight:600; cursor:pointer;
     }
-    /* 다운로드 버튼 파란색 스타일 */
-    #download {
-      background:#109bff; color:#ffffff;
+    /* 다운로드 버튼 파란색 */
+    #download{ background:#109bff; color:#ffffff; }
+    #download:hover{ filter:brightness(0.95); }
+    button.secondary{ background:var(--secondary-bg); color:var(--fg); }
+    button:disabled{ opacity:.6; cursor:not-allowed; }
+
+    /* 테마 토글 버튼 */
+    #toggleTheme{
+      background:var(--secondary-bg); color:var(--fg);
+      padding:8px 12px; border-radius:10px; font-weight:600;
     }
-    button.secondary { background:#22242a; color:var(--fg); }
-    button:disabled { opacity:.6; cursor:not-allowed; }
-    #qrbox {
+
+    #qrbox{
       background:#fff; border-radius:12px;
       width:240px; height:240px;
       display:flex; align-items:center; justify-content:center;
       overflow:hidden;
     }
-    #qrbox .placeholder { color:#666; font:14px ui-sans-serif,system-ui; }
-    .muted { color:var(--muted); font-size:12px; margin-top:6px;}
+    #qrbox .placeholder{ color:#666; font:14px ui-sans-serif,system-ui; }
+    .muted{ color:var(--muted); font-size:12px; margin-top:6px; }
   </style>
   <!-- qrcodejs -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"
@@ -59,7 +89,11 @@
 </head>
 <body>
   <div class="card">
-    <h1>QR 코드 변환기</h1>
+    <div class="topbar">
+      <h1>QR 코드 변환기</h1>
+      <button id="toggleTheme" type="button">🌙 다크모드</button>
+    </div>
+
     <div class="row">
       <div>
         <label>텍스트 / URL</label>
@@ -97,7 +131,7 @@
       </div>
 
       <div>
-        <div id="qrbox" aria-label="QR 미리보기" >
+        <div id="qrbox" aria-label="QR 미리보기">
           <div class="placeholder">미리보기 없음</div>
         </div>
       </div>
@@ -110,7 +144,29 @@
       const input = $('input'), size = $('size'), ec = $('ec'),
             dark = $('dark'), light = $('light');
       const qrbox = $('qrbox'), dlBtn = $('download'), clearBtn = $('clear');
+      const toggleBtn = $('toggleTheme');
 
+      /* ---------- Theme handling ---------- */
+      const applyTheme = (mode) => {
+        document.body.classList.toggle('light', mode === 'light');
+        toggleBtn.textContent = document.body.classList.contains('light')
+          ? '🌙 다크모드' : '☀️ 라이트모드';
+        localStorage.setItem('theme', mode);
+      };
+      // init: saved -> system -> dark
+      const saved = localStorage.getItem('theme');
+      if (saved) {
+        applyTheme(saved);
+      } else {
+        const prefersLight = window.matchMedia('(prefers-color-scheme: light)').matches;
+        applyTheme(prefersLight ? 'light' : 'dark');
+      }
+      toggleBtn.addEventListener('click', () => {
+        const next = document.body.classList.contains('light') ? 'dark' : 'light';
+        applyTheme(next);
+      });
+
+      /* ---------- QR logic ---------- */
       function showPlaceholder(msg='미리보기 없음'){
         qrbox.innerHTML = `<div class="placeholder">${msg}</div>`;
         dlBtn.disabled = true;
@@ -147,7 +203,7 @@
         if (dlBtn.disabled) return;
 
         const text = (input.value || '').trim();
-        const dlW = Number(size.value) || 1024; // ✅ 다운로드 해상도 (입력값 사용)
+        const dlW = Number(size.value) || 1024; // ✅ 다운로드 해상도
         const levelMap = (QRCode.CorrectLevel || {L:1,M:0,Q:3,H:2});
         const level = levelMap[ec.value] ?? levelMap.M;
 
@@ -159,47 +215,45 @@
         document.body.appendChild(tmp);
 
         new QRCode(tmp, {
-            text,
-            width: dlW,
-            height: dlW,
-            colorDark: dark.value,
-            colorLight: light.value,
-            correctLevel: level
+          text,
+          width: dlW,
+          height: dlW,
+          colorDark: dark.value,
+          colorLight: light.value,
+          correctLevel: level
         });
 
-        // qrcodejs가 canvas 또는 img를 비동기로 붙임 → 준비되면 저장
         const trySave = () => {
-            const c = tmp.querySelector('canvas');
-            const img = tmp.querySelector('img');
-            if (c) {
+          const c = tmp.querySelector('canvas');
+          const img = tmp.querySelector('img');
+          if (c) {
             const a = document.createElement('a');
             a.download = 'qrcode.png';
             a.href = c.toDataURL('image/png');
             a.click();
             tmp.remove();
-            } else if (img) {
+          } else if (img) {
             if (img.complete) {
+              const a = document.createElement('a');
+              a.download = 'qrcode.png';
+              a.href = img.src;
+              a.click();
+              tmp.remove();
+            } else {
+              img.addEventListener('load', () => {
                 const a = document.createElement('a');
                 a.download = 'qrcode.png';
                 a.href = img.src;
                 a.click();
                 tmp.remove();
-            } else {
-                img.addEventListener('load', () => {
-                const a = document.createElement('a');
-                a.download = 'qrcode.png';
-                a.href = img.src;
-                a.click();
-                tmp.remove();
-                }, { once: true });
+              }, { once:true });
             }
-            } else {
-            // 아직 안 붙었으면 다음 틱에 재시도
-            requestAnimationFrame(trySave);
-            }
+          } else {
+            requestAnimationFrame(trySave); // 다음 틱 재시도
+          }
         };
         requestAnimationFrame(trySave);
-        }
+      }
 
       dlBtn.addEventListener('click', downloadPNG);
 
